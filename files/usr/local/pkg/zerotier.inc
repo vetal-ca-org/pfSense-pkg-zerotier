@@ -10,9 +10,7 @@ require_once("services.inc");
 require_once("service-utils.inc");
 
 function zerotier_sync() {
-	global $config;
-
-	$zerotier_config = $config['installedpackages']['zerotier']['config'][0];
+	$zerotier_config = config_get_path('installedpackages/zerotier/config/0');
 
 	if(!($zerotier_config['enable'])) {
 		if(is_process_running("zerotier")) {
@@ -29,15 +27,8 @@ function zerotier_sync() {
 }
 
 function zerotier_install() {
-	global $config;
 
-	if (!is_array($config['installedpackages']['zerotier'])) {
-		$config['installedpackages']['zerotier'] = array();
-	}
-	
-	if (!is_array($config['installedpackages']['zerotier']['config'])) {
-		$config['installedpackages']['zerotier']['config'] = array();
-	}
+	config_get_path('installedpackages/zerotier/config', array());
 
 	$_rcfile['file'] = 'zerotier.sh';
 	$_rcfile['start'] = '/usr/local/sbin/zerotier-one -d';
@@ -53,13 +44,11 @@ function zerotier_install() {
 }
 
 function zerotier_deinstall() {
-	global $config;
 
 	if(is_process_running("zerotier")) {
 		stop_service("zerotier");
 	}
-
-	unset($config['installedpackages']['zerotier']['config'][0]);
+	config_del_path('installedpackages/zerotier/config/0');
 	write_config("[zerotier] Package uninstalled.");
 
 	$file_contents = file_get_contents("/etc/rc.conf.local");
@@ -80,9 +69,8 @@ function zerotier_kill() {
 }
 
 function zerotier_start() {
-	global $config;
-	
-	if ($config['installedpackages']['zerotier']['config'][0]['enable'] == 'yes') {
+	$zt = config_get_path('installedpackages/zerotier/config/0');
+	if ($zt['enable'] == 'yes') {
 		if (!is_service_running("zerotier")) {
 			start_service("zerotier");
 		}
