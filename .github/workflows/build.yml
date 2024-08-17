@@ -1,0 +1,97 @@
+name: Build
+
+on:
+  push: # Any branch
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Build ZeroTier package for pfSense
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read versions from VERSION file
+        id: versions
+        run: |
+          source VERSION
+          echo "ZEROTIER_VERSION=${ZEROTIER_VERSION}" >> $GITHUB_ENV
+          echo "PKG_VERSION=${PKG_VERSION}" >> $GITHUB_ENV
+          echo "PORTVERSION=${ZEROTIER_VERSION}.${PKG_VERSION}" >> $GITHUB_ENV
+
+      - name: Create or update tag
+        run: |
+          tag_name="v${{ env.PORTVERSION }}"
+          
+          # If this is not the master branch, append a timestamp to the version
+          if [ "${{ github.ref }}" != "refs/heads/master" ]; then
+            timestamp=$(date +%Y%m%d%H%M%S)
+            tag_name="${tag_name}.${timestamp}"
+          fi
+          
+          echo "TAG_NAME=${tag_name}" >> $GITHUB_ENV
+
+          git tag -d "${tag_name}" || true
+          git tag "${tag_name}"
+          git push origin --tags --force
+
+      - name: Do the build
+        id: build_package
+        uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          prepare: |
+            source ~/.profile
+            pkg install -y git gmake
+
+          run: |
+            git clone https://github.com/pfsense/FreeBSD-ports.git
+            echo 'ALLOW_UNSUPPORTED_SYSTEM=YES' | sudo tee -a /etc/make.conf
+            cp -r . FreeBSD-ports/net/pfSense-pkg-zerotier
+            cur_dir="$(pwd)"
+            ztdir="${cur_dir}/FreeBSD-ports/net/pfSense-pkg-zerotier"
+            cd "${ztdir}"
+
+            make clean
+            make package
+            cd "${cur_dir}"
+            cp -v "${ztdir}/work/pkg/pfSense-pkg-zerotier-${{ env.PORTVERSION }}.pkg" .
+
+            echo "Cleanup ports"
+            rm -rf FreeBSD-ports
+
+      - name: Generate SHA256 checksum
+        run: |
+          sha256sum pfSense-pkg-zerotier-${{ env.PORTVERSION }}.pkg > pfSense-pkg-zerotier-${{ env.PORTVERSION }}.pkg.sha256
+          cat pfSense-pkg-zerotier-${{ env.PORTVERSION }}.pkg.sha256
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ env.TAG_NAME }}
+          release_name: Release v${{ env.TAG_NAME }}
+          draft: false
+          prerelease: ${{ github.ref != 'refs/heads/master' }} # Mark as prerelease if not on master
+
+      - name: Upload Release Asset (Package)
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./pfSense-pkg-zerotier-${{ env.PORTVERSION }}.pkg
+          asset_name: pfSense-pkg-zerotier-${{ env.PORTVERSION }}.pkg
+          asset_content_type: application/octet-stream
+
+      - name: Upload Release Asset (Checksum)
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./pfSense-pkg-zerotier-${{ env.PORTVERSION }}.pkg.sha256
+          asset_name: pfSense-pkg-zerotier-${{ env.PORTVERSION }}.pkg.sha256
+          asset_content_type: text/plain

@@ -1,7 +1,41 @@
 #!/bin/sh
 
-if [ "${2}" != "POST-INSTALL" ]; then
-	exit 0
+# Ensure environment variables are set
+: ${STAGEDIR:?"STAGEDIR is not set"}
+: ${PREFIX:?"PREFIX is not set"}
+: ${FILESDIR:?"FILESDIR is not set"}
+: ${DATADIR:?"DATADIR is not set"}
+: ${REINPLACE_CMD:?"REINPLACE_CMD is not set"}
+: ${PKGVERSION:?"PKGVERSION is not set"}
+
+echo "Stagedir: ${STAGEDIR}"
+echo "Prefix: ${PREFIX}"
+echo "Filedir: ${FILESDIR}"
+echo "Datadir: ${DATADIR}"
+
+# Create necessary directories
+mkdir -p ${STAGEDIR}${PREFIX}/pkg
+mkdir -p ${STAGEDIR}${PREFIX}/www
+mkdir -p ${STAGEDIR}${DATADIR}
+
+# Install files
+install -m 644 ${FILESDIR}/usr/local/pkg/zerotier.xml ${STAGEDIR}${PREFIX}/pkg
+install -m 644 ${FILESDIR}/usr/local/pkg/zerotier.inc ${STAGEDIR}${PREFIX}/pkg
+install -m 644 ${FILESDIR}/usr/local/share/pfSense-pkg-zerotier/info.xml ${STAGEDIR}${DATADIR}
+install -m 644 ${FILESDIR}/usr/local/www/zerotier.php ${STAGEDIR}${PREFIX}/www
+install -m 644 ${FILESDIR}/usr/local/www/zerotier_networks.php ${STAGEDIR}${PREFIX}/www
+install -m 644 ${FILESDIR}/usr/local/www/zerotier_peers.php ${STAGEDIR}${PREFIX}/www
+install -m 644 ${FILESDIR}/usr/local/www/zerotier_controller.php ${STAGEDIR}${PREFIX}/www
+install -m 644 ${FILESDIR}/usr/local/www/zerotier_controller_network.php ${STAGEDIR}${PREFIX}/www
+#install -m 755 ${FILESDIR}/post-install.sh ${STAGEDIR}${PREFIX}/sbin/${PORTNAME}-post-install
+#install -m 755 ${FILESDIR}/post-deinstall.sh ${STAGEDIR}${PREFIX}/sbin/${PORTNAME}-post-deinstall
+
+# Replace placeholders in info.xml
+${REINPLACE_CMD} -e "s|%%PKGVERSION%%|${PKGVERSION}|g" ${STAGEDIR}${DATADIR}/info.xml
+
+# Handle POST-INSTALL
+if [ "${2}" = "POST-INSTALL" ]; then
+    /usr/local/bin/php -f /etc/rc.packages ${PORTNAME} ${2}
 fi
 
-/usr/local/bin/php -f /etc/rc.packages %%PORTNAME%% ${2}
+exit 0

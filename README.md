@@ -18,3 +18,8 @@ pfSense package to support zerotier.
 ## ToDo
 - [ ] Re-write controller functionality to match API changes
 - [ ] Interface creation
+
+
+```shell
+cp -r pfSense-pkg-zerotier FreeBSD-ports/net/
+```

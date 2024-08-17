@@ -1,3 +1,18 @@
 #!/bin/sh
 
-/usr/local/bin/php -f /etc/rc.packages %%PORTNAME%% ${2}
+/usr/local/bin/php -f /etc/rc.packages ${PORTNAME} ${2}
+
+# Remove installed files
+rm -f ${PREFIX}/pkg/zerotier.xml
+rm -f ${PREFIX}/pkg/zerotier.inc
+rm -f ${DATADIR}/info.xml
+rm -f ${PREFIX}/www/zerotier.php
+rm -f ${PREFIX}/www/zerotier_networks.php
+rm -f ${PREFIX}/www/zerotier_peers.php
+rm -f ${PREFIX}/www/zerotier_controller.php
+rm -f ${PREFIX}/www/zerotier_controller_network.php
+
+# Remove directories if they are empty
+rmdir ${PREFIX}/pkg 2>/dev/null || true
+rmdir ${PREFIX}/www 2>/dev/null || true
+rmdir ${DATADIR} 2>/dev/null || true
