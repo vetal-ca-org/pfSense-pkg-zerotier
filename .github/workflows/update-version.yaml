@@ -1,0 +1,49 @@
+name: Update PKG_VERSION on PR merge or manual merge
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types:
+      - closed
+
+jobs:
+  update-version:
+    if: |
+      github.event_name == 'push' || 
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Check if version.json was modified
+        id: check-version
+        run: |
+          if git diff --name-only HEAD^ HEAD | grep -q '^version.json$'; then
+            echo "version.json was modified, skipping update."
+            echo "::set-output name=modified::true"
+          else
+            echo "version.json was not modified, proceeding with update."
+            echo "::set-output name=modified::false"
+          fi
+
+      - name: Increment PKG_VERSION
+        if: steps.check-version.outputs.modified == 'false'
+        run: |
+          # Make it two steps to avoid in-flight overwrite
+          updated_version=$(jq '.pkg_version |= (split(".") | (.[-1] |= (tonumber + 1 | tostring)) | join("."))' version.json)
+          echo "${updated_version}" > version.json
+
+      - name: Commit and push changes
+        if: steps.check-version.outputs.modified == 'false'
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add version.json
+          git commit -m "Automatically increment PKG_VERSION to $NEW_VERSION [skip ci]"
+          git push origin HEAD:master

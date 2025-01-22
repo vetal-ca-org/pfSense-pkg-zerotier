@@ -1,5 +1,13 @@
-# Read versions from VERSION file
-include VERSION
+PKG_VERSION ?=
+ZEROTIER_VERSION ?=
+
+.if empty(PKG_VERSION)
+.error PKG_VERSION is not set
+.endif
+
+.if empty(ZEROTIER_VERSION)
+.error ZEROTIER_VERSION is not set
+.endif
 
 PORTNAME=	pfSense-pkg-zerotier
 PORTVERSION=	${ZEROTIER_VERSION}.${PKG_VERSION}

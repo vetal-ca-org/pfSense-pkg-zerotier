@@ -34,8 +34,5 @@ install -m 644 ${FILESDIR}/usr/local/www/zerotier_controller_network.php ${STAGE
 ${REINPLACE_CMD} -e "s|%%PKGVERSION%%|${PKGVERSION}|g" ${STAGEDIR}${DATADIR}/info.xml
 
 # Handle POST-INSTALL
-if [ "${2}" = "POST-INSTALL" ]; then
-    /usr/local/bin/php -f /etc/rc.packages ${PORTNAME} ${2}
-fi
 
 exit 0
