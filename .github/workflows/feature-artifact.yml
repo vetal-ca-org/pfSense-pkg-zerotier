@@ -1,0 +1,29 @@
+name: Feature Artifact
+
+on:
+  push:
+    branches-ignore:
+      - master
+
+jobs:
+  read-version:
+    uses: ./.github/workflows/read-version.yml
+
+  sanitize-branch:
+    runs-on: ubuntu-latest
+    outputs:
+      sanitized_name: ${{ steps.sanitize.outputs.sanitized-branch-name }}
+    steps:
+      - name: Sanitize branch name
+        id: sanitize
+        uses: yeouchien/sanitize-branch-name-action@v1
+        with:
+          branch-name: ${{ github.ref_name }}
+
+  call-build:
+    needs: [read-version, sanitize-branch]
+    uses: ./.github/workflows/shared-build.yml
+    with:
+      pkg-version: ${{ needs.read-version.outputs.pkg_version }}
+      zerotier-version: ${{ needs.read-version.outputs.zerotier_version }}
+      name-suffix: ${{ needs.sanitize-branch.outputs.sanitized_name }}

@@ -1,0 +1,78 @@
+# https://www.perplexity.ai/search/what-is-the-best-strategy-to-c-fpu3raRET4Guthpe6qQP8A
+name: Shared Build
+
+on:
+  workflow_call:
+    inputs:
+      pkg-version:
+        required: true
+        type: string
+      zerotier-version:
+        required: true
+        type: string
+      name-suffix:
+        required: false
+        type: string
+
+jobs:
+  build-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Do the build
+        id: build_package
+        uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          prepare: |
+            pkg install -y git gmake zerotier-${{ inputs.zerotier-version }}
+          run: |
+            export PKG_VERSION="${{ inputs.pkg-version }}"
+            export ZEROTIER_VERSION="${{ inputs.zerotier-version }}"
+            export GITHUB_OWNER="${{ github.repository_owner }}"
+            export GITHUB_REPO="${{ github.event.repository.name }}"
+            echo "Pkg version: ${PKG_VERSION}"
+            echo "ZeroTier version: ${ZEROTIER_VERSION}"
+            echo "GitHub owner: ${GITHUB_OWNER}"
+            echo "GitHub repo: ${GITHUB_REPO}"
+            
+            git clone https://github.com/pfsense/FreeBSD-ports.git
+            echo 'ALLOW_UNSUPPORTED_SYSTEM=YES' | tee -a /etc/make.conf
+            cp -r . FreeBSD-ports/net/pfSense-pkg-zerotier
+            cur_dir="$(pwd)"
+            ztdir="${cur_dir}/FreeBSD-ports/net/pfSense-pkg-zerotier"
+            cd "${ztdir}"
+
+            export ALLOW_UNSUPPORTED_SYSTEM=YES
+            make clean
+            make package
+
+            cd "${cur_dir}"
+            port_version="${ZEROTIER_VERSION}.${PKG_VERSION}"
+            src_name="pfSense-pkg-zerotier-${port_version}"
+            release_name="zerotier-${port_version}"
+            dst_name="${src_name}"
+            if [ -n "${{ inputs.name-suffix }}" ]; then
+              dst_name="${src_name}-${{ inputs.name-suffix }}"
+              release_name="${release_name}-${{ inputs.name-suffix }}"
+            fi
+            cp -v "${ztdir}/work/pkg/${src_name}.pkg" ./"${dst_name}.pkg"
+            echo "dst_name=${dst_name}" >> $GITHUB_OUTPUT
+            echo "release_name=${release_name}" >> $GITHUB_OUTPUT
+
+            echo "Cleanup ports"
+            rm -rf FreeBSD-ports
+
+      - name: Generate SHA256 checksum
+        run: |
+          sha256sum ${{ steps.build_package.outputs.dst_name }}.pkg >${{ steps.build_package.outputs.dst_name }}.pkg.sha256
+          cat ${{ steps.build_package.outputs.dst_name }}.pkg.sha256
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.build_package.outputs.release_name }}
+          files: |
+            ${{ steps.build_package.outputs.dst_name }}.pkg
+            ${{ steps.build_package.outputs.dst_name }}.pkg.sha256
+          generate_release_notes: true

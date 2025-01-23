@@ -1,0 +1,17 @@
+name: Master Release
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  read-version:
+    uses: ./.github/workflows/read-version.yml
+
+  call-build:
+    needs: read-version
+    uses: ./.github/workflows/shared-build.yml
+    with:
+      pkg-version: ${{ needs.read-version.outputs.pkg_version }}
+      zerotier-version: ${{ needs.read-version.outputs.zerotier_version }}

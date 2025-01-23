@@ -1,0 +1,43 @@
+name: Fetch Zerotier Package
+
+on:
+  push:
+    paths:
+      - 'version.json'
+  workflow_dispatch:
+
+jobs:
+  read-version:
+    uses: ./.github/workflows/read-version.yml
+
+  fetch-package:
+    needs: read-version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Start FreeBSD VM and Fetch Package
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: "14.2"
+          arch: "amd64"
+          usesh: true
+          run: |
+            pkg update
+            IGNORE_OSVERSION=yes pkg fetch -y zerotier-${{ needs.read-version.outputs.zerotier_version }}
+            cp -v /var/cache/pkg/zerotier-${{ needs.read-version.outputs.zerotier_version }}.pkg .
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "zerotier-${{ needs.read-version.outputs.zerotier_version }}"
+          name: "ZeroTier ${{ needs.read-version.outputs.zerotier_version }}"
+          body: "Automated release of ZeroTier package version ${{ needs.read-version.outputs.zerotier_version }}"
+          draft: false
+          prerelease: false
+          update_existing: true
+          files: zerotier-${{ needs.read-version.outputs.zerotier_version }}.pkg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

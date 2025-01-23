@@ -1,0 +1,32 @@
+name: Read Version
+
+on:
+  workflow_call:
+    outputs:
+      zerotier_version:
+        description: "ZeroTier version from version.json"
+        value: ${{ jobs.read-version.outputs.zerotier_version }}
+      pkg_version:
+        description: "Package version from version.json"
+        value: ${{ jobs.read-version.outputs.pkg_version }}
+
+jobs:
+  read-version:
+    runs-on: ubuntu-latest
+    outputs:
+      zerotier_version: ${{ steps.read-version.outputs.zerotier_version }}
+      pkg_version: ${{ steps.read-version.outputs.pkg_version }}
+      port_version: ${{ steps.read-version.outputs.port_version }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Read Version
+        id: read-version
+        run: |
+          ZEROTIER_VERSION=$(jq -r '.zerotier_version' version.json)
+          PKG_VERSION=$(jq -r '.pkg_version' version.json)
+          echo "zerotier_version=${ZEROTIER_VERSION}" >> $GITHUB_OUTPUT
+          echo "pkg_version=${PKG_VERSION}" >> $GITHUB_OUTPUT
+          echo "ZeroTier version: ${ZEROTIER_VERSION}"
+          echo "Package version: ${PKG_VERSION}"

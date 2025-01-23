@@ -2,6 +2,9 @@
 
 /usr/local/bin/php -f /etc/rc.packages ${PORTNAME} ${2}
 
+# Remove ZeroTier package
+pkg delete -y zerotier
+
 # Remove installed files
 rm -f ${PREFIX}/pkg/zerotier.xml
 rm -f ${PREFIX}/pkg/zerotier.inc

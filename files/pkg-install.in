@@ -13,26 +13,31 @@ echo "Prefix: ${PREFIX}"
 echo "Filedir: ${FILESDIR}"
 echo "Datadir: ${DATADIR}"
 
+# Download and install ZeroTier package
+fetch -o /tmp/zerotier.pkg https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/zerotier-${ZEROTIER_VERSION}/zerotier-${ZEROTIER_VERSION}.pkg
+pkg add /tmp/zerotier.pkg
+
 # Create necessary directories
 mkdir -p ${STAGEDIR}${PREFIX}/pkg
 mkdir -p ${STAGEDIR}${PREFIX}/www
 mkdir -p ${STAGEDIR}${DATADIR}
 
+
 # Install files
-install -m 644 ${FILESDIR}/usr/local/pkg/zerotier.xml ${STAGEDIR}${PREFIX}/pkg
-install -m 644 ${FILESDIR}/usr/local/pkg/zerotier.inc ${STAGEDIR}${PREFIX}/pkg
-install -m 644 ${FILESDIR}/usr/local/share/pfSense-pkg-zerotier/info.xml ${STAGEDIR}${DATADIR}
-install -m 644 ${FILESDIR}/usr/local/www/zerotier.php ${STAGEDIR}${PREFIX}/www
-install -m 644 ${FILESDIR}/usr/local/www/zerotier_networks.php ${STAGEDIR}${PREFIX}/www
-install -m 644 ${FILESDIR}/usr/local/www/zerotier_peers.php ${STAGEDIR}${PREFIX}/www
-install -m 644 ${FILESDIR}/usr/local/www/zerotier_controller.php ${STAGEDIR}${PREFIX}/www
-install -m 644 ${FILESDIR}/usr/local/www/zerotier_controller_network.php ${STAGEDIR}${PREFIX}/www
-#install -m 755 ${FILESDIR}/post-install.sh ${STAGEDIR}${PREFIX}/sbin/${PORTNAME}-post-install
-#install -m 755 ${FILESDIR}/post-deinstall.sh ${STAGEDIR}${PREFIX}/sbin/${PORTNAME}-post-deinstall
+install -m 644 ${FILESDIR}${PREFIX}/pkg/zerotier.xml ${STAGEDIR}${PREFIX}/pkg
+install -m 644 ${FILESDIR}${PREFIX}/pkg/zerotier.inc ${STAGEDIR}${PREFIX}/pkg
+install -m 644 ${FILESDIR}${DATADIR}/info.xml ${STAGEDIR}${DATADIR}
+install -m 644 ${FILESDIR}${PREFIX}/www/zerotier.php ${STAGEDIR}${PREFIX}/www
+install -m 644 ${FILESDIR}${PREFIX}/www/zerotier_networks.php ${STAGEDIR}${PREFIX}/www
+install -m 644 ${FILESDIR}${PREFIX}/www/zerotier_peers.php ${STAGEDIR}${PREFIX}/www
+install -m 644 ${FILESDIR}${PREFIX}/www/zerotier_controller.php ${STAGEDIR}${PREFIX}/www
+install -m 644 ${FILESDIR}${PREFIX}/www/zerotier_controller_network.php ${STAGEDIR}${PREFIX}/www
 
 # Replace placeholders in info.xml
-${REINPLACE_CMD} -e "s|%%PKGVERSION%%|${PKGVERSION}|g" ${STAGEDIR}${DATADIR}/info.xml
+${REINPLACE_CMD} -i '' -e "s|%%PKGVERSION%%|${PKGVERSION}|" ${STAGEDIR}${DATADIR}/info.xml
 
-# Handle POST-INSTALL
+if [ "${2}" != "POST-INSTALL" ]; then
+	exit 0
+fi
 
-exit 0
+/usr/local/bin/php -f /etc/rc.packages %%PORTNAME%% ${2}
