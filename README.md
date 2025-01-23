@@ -1,25 +1,19 @@
 # pfSense-pkg-zerotier
 pfSense package to support zerotier.
 
-## Pre-reqs
-1. FreeBSD 12.2 Workstation with pkg, git, and gmake
+# The package is provided as is, I don’t know for sure that my changes work properly
+## how to fix zerotier for freebsd 14 & pfsense 2.7:
+- [instructions taken from here](https://discuss.zerotier.com/t/freebsd-14-0-zerotier-401-error/16919)
+- under root, open file `nano /var/db/zerotier-one/local.conf`
+- add(if file new, if not remove first and last bracket):
+  ```
+  {
+    "settings": {
+        "allowManagementFrom": [ "127.0.0.1", "::1", "ffff:127.0.0.1" ]
+    }
+  }
+  ```
 
-## Build
-1. `git clone https://github.com/pfsense/FreeBSD-ports.git`
-2. add `ALLOW_UNSUPPORTED_SYSTEM=YES` to /etc/make.conf
-3. Copy these files to FreeBSD-ports/net/pfSense-pkg-zerotier
-4. Run `make clean ; make package`
-5. scp work/pkg/pfSense-pkg-zerotier-0.00.1.txz to pfsense
-
-## Install
-1. Run `pkg add http://pkg.freebsd.org/freebsd:12:x86:64/latest/All/zerotier-1.8.6.txz`
-2. Run `pkg add pfsense-pkg-zerotier-0.00.1.txz`
-
-## ToDo
-- [ ] Re-write controller functionality to match API changes
-- [ ] Interface creation
-
-
-```shell
-cp -r pfSense-pkg-zerotier FreeBSD-ports/net/
-```
+## I compiled this package for the current pfsense(bsd ver 14), you can find it in the releases
+Run `pkg add https://pkg.freebsd.org/FreeBSD:14:amd64/latest/All/zerotier-1.12.2.pkg` \
+Run `pkg add https://github.com/asvdvl/pfSense-pkg-zerotier/releases/download/2.7/pfSense-pkg-zerotier-0.00.1.pkg`
