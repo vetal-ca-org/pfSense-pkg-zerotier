@@ -14,9 +14,16 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   build-package:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - name: Do the build
@@ -69,7 +76,9 @@ jobs:
           cat ${{ steps.build_package.outputs.dst_name }}.pkg.sha256
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.build_package.outputs.release_name }}
           files: |

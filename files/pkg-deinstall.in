@@ -1,21 +1,65 @@
 #!/bin/sh
 
-/usr/local/bin/php -f /etc/rc.packages ${PORTNAME} ${2}
+# Set default values for runtime environment
+: ${STAGEDIR:=/usr/local}
+: ${PREFIX:=/usr/local}
+: ${FILESDIR:=/usr/local/share/pfSense-pkg-zerotier}
+: ${DATADIR:=/usr/local/share/pfSense-pkg-zerotier}
 
-# Remove ZeroTier package
-pkg delete -y zerotier
+# Set up logging
+LOG_FILE="/tmp/zerotier-uninstall-$(date '+%Y%m%d-%H%M%S').log"
+log() {
+	local message="$1"
+	local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+	echo "[$timestamp] $message" >> "${LOG_FILE}"
+	logger -t zerotier "$message"
+	# Also print to stdout for pkg to see
+	echo "$message"
+}
 
-# Remove installed files
-rm -f ${PREFIX}/pkg/zerotier.xml
-rm -f ${PREFIX}/pkg/zerotier.inc
-rm -f ${DATADIR}/info.xml
-rm -f ${PREFIX}/www/zerotier.php
-rm -f ${PREFIX}/www/zerotier_networks.php
-rm -f ${PREFIX}/www/zerotier_peers.php
-rm -f ${PREFIX}/www/zerotier_controller.php
-rm -f ${PREFIX}/www/zerotier_controller_network.php
+log "Deinstall script started with arguments: $@"
+log "Log file: ${LOG_FILE}"
 
-# Remove directories if they are empty
-rmdir ${PREFIX}/pkg 2>/dev/null || true
-rmdir ${PREFIX}/www 2>/dev/null || true
-rmdir ${DATADIR} 2>/dev/null || true
+# If PKGVERSION not set in environment, try to get it from package name
+if [ -z "${PKGVERSION}" ] && [ -n "$1" ]; then
+	PKGVERSION=$(echo "$1" | sed -E 's/pfSense-pkg-zerotier-([0-9.]+)/\1/')
+	log "Extracted PKGVERSION from package name: ${PKGVERSION}"
+fi
+
+log "Environment: STAGEDIR=${STAGEDIR} PREFIX=${PREFIX} FILESDIR=${FILESDIR} DATADIR=${DATADIR} PKGVERSION=${PKGVERSION}"
+
+# Handle package deinstall (package name as argument)
+if [ "$1" = "pfSense-pkg-zerotier-${PKGVERSION}" ]; then
+	log "Package deinstall mode - running deinstallation"
+	
+	# Run pre-deinstall tasks
+	log "Running pre-deinstall tasks"
+	if [ -f "/etc/rc.packages" ]; then
+		/usr/local/bin/php -f /etc/rc.packages pfSense-pkg-zerotier PRE-DEINSTALL 2>&1 | tee -a "${LOG_FILE}"
+	fi
+
+	# Run deinstall tasks
+	log "Running deinstall tasks"
+	if [ -f "/etc/rc.packages" ]; then
+		/usr/local/bin/php -f /etc/rc.packages pfSense-pkg-zerotier DEINSTALL 2>&1 | tee -a "${LOG_FILE}"
+	fi
+
+	# Run post-deinstall tasks
+	log "Running post-deinstall tasks"
+	if [ -f "/etc/rc.packages" ]; then
+		/usr/local/bin/php -f /etc/rc.packages pfSense-pkg-zerotier POST-DEINSTALL 2>&1 | tee -a "${LOG_FILE}"
+	fi
+
+	# Clean up any remaining files
+	log "Cleaning up files"
+	rm -f /tmp/zerotier.pkg
+	rm -f /usr/local/etc/rc.d/zerotier_postinstall.sh
+
+	log "Deinstallation completed"
+	exit 0
+fi
+
+# If we get here, something went wrong
+log "Error: Invalid arguments"
+echo "Error: Invalid arguments"
+exit 1
