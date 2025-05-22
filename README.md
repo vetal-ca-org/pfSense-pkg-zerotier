@@ -34,23 +34,17 @@ git clone https://github.com/Vetal-ca/pfSense-pkg-zerotier.git
 3. Copy this repository to the ports repository
 ```shell
 cp -R ./pfSense-pkg-zerotier ./FreeBSD-ports/net/
-
 ```
 
-4. Switch to the ports directory
-
-```shell 
-cd ./FreeBSD-ports/net/pfSense-pkg-zerotier
-```
-5. 
+4
 
 ```shell
 dir=$(pwd)/FreeBSD-ports/net/pfSense-pkg-zerotier &&\
 ZEROTIER_VERSION=$(cat "${dir}/version.json" | jq -r '.zerotier_version') &&\
 PKG_VERSION=$(cat "${dir}/version.json" | jq -r '.pkg_version') &&\
-export ZEROTIER_VERSION &&\
-export PKG_VERSION &&\
+GITHUB_OWNER="vetal-ca" &&\
+GITHUB_REPO="pfSense-pkg-zerotier" &&\
+export ZEROTIER_VERSION PKG_VERSION GITHUB_OWNER GITHUB_REPO &&\
 make -C "${dir}" clean &&\
 make -C "${dir}" package
-
 ```

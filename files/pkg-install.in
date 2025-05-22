@@ -1,43 +1,149 @@
 #!/bin/sh
 
-# Ensure environment variables are set
-: ${STAGEDIR:?"STAGEDIR is not set"}
-: ${PREFIX:?"PREFIX is not set"}
-: ${FILESDIR:?"FILESDIR is not set"}
-: ${DATADIR:?"DATADIR is not set"}
-: ${REINPLACE_CMD:?"REINPLACE_CMD is not set"}
-: ${PKGVERSION:?"PKGVERSION is not set"}
+# Set default values for runtime environment
+: ${STAGEDIR:=/usr/local}
+: ${PREFIX:=/usr/local}
+: ${FILESDIR:=/usr/local/share/pfSense-pkg-zerotier}
+: ${DATADIR:=/usr/local/share/pfSense-pkg-zerotier}
+: ${REINPLACE_CMD:=sed -i.bak}
 
-echo "Stagedir: ${STAGEDIR}"
-echo "Prefix: ${PREFIX}"
-echo "Filedir: ${FILESDIR}"
-echo "Datadir: ${DATADIR}"
+# GitHub configuration (substituted during package build)
+GITHUB_OWNER=%%GITHUB_OWNER%%
+GITHUB_REPO=%%GITHUB_REPO%%
+ZEROTIER_VERSION=%%ZEROTIER_VERSION%%
 
-# Download and install ZeroTier package
-fetch -o /tmp/zerotier.pkg https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/zerotier-${ZEROTIER_VERSION}/zerotier-${ZEROTIER_VERSION}.pkg
-pkg add /tmp/zerotier.pkg
+# Set up logging
+LOG_FILE="/tmp/zerotier-install-$(date '+%Y%m%d-%H%M%S').log"
+log() {
+	local message="$1"
+	local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+	echo "[$timestamp] $message" >> "${LOG_FILE}"
+	logger -t zerotier "$message"
+	# Also print to stdout for pkg to see
+	echo "$message"
+}
 
-# Create necessary directories
-mkdir -p ${STAGEDIR}${PREFIX}/pkg
-mkdir -p ${STAGEDIR}${PREFIX}/www
-mkdir -p ${STAGEDIR}${DATADIR}
+log "Install script started with arguments: $@"
+log "Log file: ${LOG_FILE}"
 
+# If PKGVERSION not set in environment, try to get it from package name
+if [ -z "${PKGVERSION}" ] && [ -n "$1" ]; then
+	PKGVERSION=$(echo "$1" | sed -E 's/pfSense-pkg-zerotier-([0-9.]+)/\1/')
+	log "Extracted PKGVERSION from package name: ${PKGVERSION}"
+fi
 
-# Install files
-install -m 644 ${FILESDIR}${PREFIX}/pkg/zerotier.xml ${STAGEDIR}${PREFIX}/pkg
-install -m 644 ${FILESDIR}${PREFIX}/pkg/zerotier.inc ${STAGEDIR}${PREFIX}/pkg
-install -m 644 ${FILESDIR}${DATADIR}/info.xml ${STAGEDIR}${DATADIR}
-install -m 644 ${FILESDIR}${PREFIX}/www/zerotier.php ${STAGEDIR}${PREFIX}/www
-install -m 644 ${FILESDIR}${PREFIX}/www/zerotier_networks.php ${STAGEDIR}${PREFIX}/www
-install -m 644 ${FILESDIR}${PREFIX}/www/zerotier_peers.php ${STAGEDIR}${PREFIX}/www
-install -m 644 ${FILESDIR}${PREFIX}/www/zerotier_controller.php ${STAGEDIR}${PREFIX}/www
-install -m 644 ${FILESDIR}${PREFIX}/www/zerotier_controller_network.php ${STAGEDIR}${PREFIX}/www
+log "Environment: STAGEDIR=${STAGEDIR} PREFIX=${PREFIX} FILESDIR=${FILESDIR} DATADIR=${DATADIR} PKGVERSION=${PKGVERSION}"
+log "GitHub config: GITHUB_OWNER=${GITHUB_OWNER} GITHUB_REPO=${GITHUB_REPO} ZEROTIER_VERSION=${ZEROTIER_VERSION}"
 
-# Replace placeholders in info.xml
-${REINPLACE_CMD} -i '' -e "s|%%PKGVERSION%%|${PKGVERSION}|" ${STAGEDIR}${DATADIR}/info.xml
-
-if [ "${2}" != "POST-INSTALL" ]; then
+# Handle package build (no arguments)
+if [ -z "$1" ]; then
+	log "Package build mode - replacing version in info.xml"
+	if [ -f "${STAGEDIR}${DATADIR}/info.xml" ]; then
+		${REINPLACE_CMD} -i '' -e "s|%%PKGVERSION%%|${PKGVERSION}|" ${STAGEDIR}${DATADIR}/info.xml
+	fi
 	exit 0
 fi
 
-/usr/local/bin/php -f /etc/rc.packages %%PORTNAME%% ${2}
+download_package() {
+	log "Starting package download"
+	# Download ZeroTier package
+	if [ -n "${GITHUB_OWNER}" ] && [ -n "${GITHUB_REPO}" ] && [ -n "${ZEROTIER_VERSION}" ]; then
+		log "Downloading ZeroTier package from GitHub"
+		fetch -o /tmp/zerotier.pkg https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/zerotier-${ZEROTIER_VERSION}/zerotier-${ZEROTIER_VERSION}.pkg
+		if [ $? -ne 0 ]; then
+			log "Error: Failed to download ZeroTier package"
+			return 1
+		fi
+		
+		log "Package download completed"
+		return 0
+	else
+		log "Error: Missing required GitHub configuration"
+		log "GITHUB_OWNER=${GITHUB_OWNER}"
+		log "GITHUB_REPO=${GITHUB_REPO}"
+		log "ZEROTIER_VERSION=${ZEROTIER_VERSION}"
+		return 1
+	fi
+}
+
+# Handle package install (package name as argument)
+if [ "$1" = "pfSense-pkg-zerotier-${PKGVERSION}" ]; then
+	log "Package install mode - running installation"
+	
+	# Run pre-installation tasks
+	log "Running pre-installation tasks"
+	if [ -f "/etc/rc.packages" ]; then
+		/usr/local/bin/php -f /etc/rc.packages pfSense-pkg-zerotier PRE-INSTALL 2>&1 | tee -a "${LOG_FILE}"
+	fi
+
+	# Download the package during installation
+	log "Running download tasks"
+	download_package
+	if [ $? -ne 0 ]; then
+		log "Error: Package download failed"
+		exit 1
+	fi
+
+	# Run post-installation tasks
+	log "Running post-installation tasks"
+	if [ -f "/etc/rc.packages" ]; then
+		/usr/local/bin/php -f /etc/rc.packages pfSense-pkg-zerotier POST-INSTALL 2>&1 | tee -a "${LOG_FILE}"
+	fi
+
+	# Create a post-install script to install the downloaded package
+	log "Creating post-install script"
+	cat > /usr/local/etc/rc.d/zerotier_postinstall.sh << 'EOF'
+#!/bin/sh
+
+# PROVIDE: zerotier_postinstall
+# REQUIRE: NETWORKING
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name="zerotier_postinstall"
+rcvar="zerotier_postinstall_enable"
+start_cmd="${name}_start"
+stop_cmd=":"
+
+zerotier_postinstall_start()
+{
+    echo "Running post-install script" >> /tmp/zerotier_postinstall.log
+    # Wait for pkg to release the lock
+    while pgrep -f "pkg add" > /dev/null; do
+        echo "Waiting for pkg to release lock..." >> /tmp/zerotier_postinstall.log
+        sleep 1
+    done
+    # Install ZeroTier package after main package installation
+    if [ -f /tmp/zerotier.pkg ]; then
+        echo "Installing ZeroTier package..." >> /tmp/zerotier_postinstall.log
+        env IGNORE_OSVERSION=yes /usr/sbin/pkg add /tmp/zerotier.pkg
+        rm -f /tmp/zerotier.pkg
+    fi
+    # Remove this script after it runs
+    rm -f "$0"
+    # Remove this service from rc.conf
+    sysrc -x zerotier_postinstall_enable >/dev/null 2>&1
+}
+
+load_rc_config $name
+run_rc_command "$1"
+EOF
+	chmod +x /usr/local/etc/rc.d/zerotier_postinstall.sh
+
+	# Enable the post-install script
+	log "Enabling post-install script"
+	sysrc zerotier_postinstall_enable="YES"
+
+	# Start the post-install script in the background
+	log "Starting post-install script"
+	/usr/local/etc/rc.d/zerotier_postinstall.sh start &
+
+	log "Installation completed"
+	exit 0
+fi
+
+# If we get here, something went wrong
+log "Error: Invalid arguments"
+echo "Error: Invalid arguments"
+exit 1
