@@ -40,6 +40,32 @@ function zerotier_install() {
 	$file_contents = preg_replace('/(\^enc\|)/', "^zt|$1", $file_contents);
 	file_put_contents("/etc/inc/util.inc", $file_contents);
 
+	// Create Interface Group
+	$found = false;
+
+	// Check if the interface group already exists
+	foreach (config_get_path('ifgroups/ifgroupentry', []) as $ifg) {
+		if ($ifg['ifname'] == "pkg_zerotier") {
+			$found = true;
+		}
+	}
+
+	// Add the interface group if it doesn't exist
+	if (!$found) {
+		$ifgroupentry = array();
+		$ifgroupentry['members'] = '';
+		$ifgroupentry['descr'] = 'ZeroTier VPN interface group';
+		$ifgroupentry['ifname'] = 'pkg_zerotier';
+		// Use array_push to add the new entry to the existing array
+		$ifgroups = config_get_path('ifgroups/ifgroupentry', []);
+		array_push($ifgroups, $ifgroupentry);
+		config_set_path('ifgroups/ifgroupentry', $ifgroups);
+	}
+    /*
+     * XXX: Do not remove this, otherwise the interface group may not be added properly.
+     */
+    // unlink_if_exists("{$g['tmp_path']}/config.cache");
+
 	write_config("[zerotier] Package installed.");
 }
 
@@ -48,6 +74,28 @@ function zerotier_deinstall() {
 	if(is_process_running("zerotier")) {
 		stop_service("zerotier");
 	}
+
+	/* Remove Interface Group */
+
+	$myid = -1;
+	foreach (config_get_path('ifgroups/ifgroupentry', []) as $idx => $ifgroupentry) {
+		if ($ifgroupentry['ifname'] == 'pkg_zerotier') {
+			$myid = $idx;
+			break;
+		}
+	}
+
+	if (is_numericint($myid) && config_get_path("ifgroups/ifgroupentry/{$myid}")) {
+		$members = array_filter(explode(" ", config_get_path("ifgroups/ifgroupentry/{$myid}/members")));
+		foreach ($members as $ifs) {
+			$realif = get_real_interface($ifs);
+			if ($realif) {
+				mwexec("/sbin/ifconfig {$realif} -group " . escapeshellarg(config_get_path("ifgroups/ifgroupentry/{$myid}/ifname")));
+			}
+		}
+		config_del_path("ifgroups/ifgroupentry/{$myid}");
+	}
+
 	config_del_path('installedpackages/zerotier/config/0');
 	write_config("[zerotier] Package uninstalled.");
 
@@ -300,7 +348,6 @@ function zt_get_pfsense_interface_info($portDeviceName): pfInterface {
 	else {
 		return new pfInterface();
 	}
-
 }
 
 class pfInterface {
