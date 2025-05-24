@@ -25,8 +25,9 @@ jobs:
           arch: "amd64"
           usesh: true
           run: |
-            env IGNORE_OSVERSION=yes pkg update
-            env IGNORE_OSVERSION=yes pkg fetch -y zerotier-${{ needs.read-version.outputs.zerotier_version }}
+            export IGNORE_OSVERSION=yes
+            pkg update
+            pkg fetch -y zerotier-${{ needs.read-version.outputs.zerotier_version }}
             cp -v /var/cache/pkg/zerotier-${{ needs.read-version.outputs.zerotier_version }}.pkg .
 
       - name: Create GitHub Release

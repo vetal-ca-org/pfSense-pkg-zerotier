@@ -63,6 +63,7 @@ do-install:
 	${MKDIR} ${STAGEDIR}${PREFIX}/pkg
 	${MKDIR} ${STAGEDIR}${PREFIX}/www
 	${MKDIR} ${STAGEDIR}${DATADIR}
+	${MKDIR} ${STAGEDIR}${PREFIX}/var/db/zerotier-one
 
 	# Install files
 	${INSTALL_DATA} ${FILESDIR}${PREFIX}/pkg/zerotier.xml ${STAGEDIR}${PREFIX}/pkg/
@@ -73,6 +74,7 @@ do-install:
 	${INSTALL_DATA} ${FILESDIR}${PREFIX}/www/zerotier_peers.php ${STAGEDIR}${PREFIX}/www/
 	${INSTALL_DATA} ${FILESDIR}${PREFIX}/www/zerotier_controller.php ${STAGEDIR}${PREFIX}/www/
 	${INSTALL_DATA} ${FILESDIR}${PREFIX}/www/zerotier_controller_network.php ${STAGEDIR}${PREFIX}/www/
+	${INSTALL_DATA} ${FILESDIR}${PREFIX}/var/db/zerotier-one/local.conf ${STAGEDIR}${PREFIX}/var/db/zerotier-one/
 
 	# Run pkg-install script
 	@echo "================================================" | tee -a /tmp/zerotier-make.log

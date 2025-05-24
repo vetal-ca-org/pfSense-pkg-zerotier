@@ -45,5 +45,5 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add version.json
-          git commit -m "Automatically increment PKG_VERSION to $NEW_VERSION [skip ci]"
+          git commit -m "Automatically increment PKG_VERSION to $(jq -r '.pkg_version' version.json)"
           git push origin HEAD:master

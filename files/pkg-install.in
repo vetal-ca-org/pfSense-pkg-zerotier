@@ -12,6 +12,11 @@ GITHUB_OWNER=%%GITHUB_OWNER%%
 GITHUB_REPO=%%GITHUB_REPO%%
 ZEROTIER_VERSION=%%ZEROTIER_VERSION%%
 
+# ZEROTIER_PACKAGE_SOURCE: controls which package to download (compiled or fetched)
+# Default is 'compiled'.
+#   compiled: https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/zerotier-${ZEROTIER_VERSION}-compiled/zerotier-${ZEROTIER_VERSION}.pkg
+#   fetched:  https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/zerotier-${ZEROTIER_VERSION}/zerotier-${ZEROTIER_VERSION}.pkg
+
 # Set up logging
 LOG_FILE="/tmp/zerotier-install-$(date '+%Y%m%d-%H%M%S').log"
 log() {
@@ -46,24 +51,21 @@ fi
 
 download_package() {
 	log "Starting package download"
-	# Download ZeroTier package
-	if [ -n "${GITHUB_OWNER}" ] && [ -n "${GITHUB_REPO}" ] && [ -n "${ZEROTIER_VERSION}" ]; then
-		log "Downloading ZeroTier package from GitHub"
-		fetch -o /tmp/zerotier.pkg https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/zerotier-${ZEROTIER_VERSION}/zerotier-${ZEROTIER_VERSION}.pkg
-		if [ $? -ne 0 ]; then
-			log "Error: Failed to download ZeroTier package"
-			return 1
-		fi
-		
-		log "Package download completed"
-		return 0
+	local url=""
+	local source="${ZEROTIER_PACKAGE_SOURCE:-compiled}"
+	if [ "$source" = "compiled" ]; then
+		url="https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/zerotier-${ZEROTIER_VERSION}-compiled/zerotier-${ZEROTIER_VERSION}.pkg"
 	else
-		log "Error: Missing required GitHub configuration"
-		log "GITHUB_OWNER=${GITHUB_OWNER}"
-		log "GITHUB_REPO=${GITHUB_REPO}"
-		log "ZEROTIER_VERSION=${ZEROTIER_VERSION}"
+		url="https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/zerotier-${ZEROTIER_VERSION}/zerotier-${ZEROTIER_VERSION}.pkg"
+	fi
+	log "Downloading ZeroTier package from $url"
+	fetch -o /tmp/zerotier.pkg "$url"
+	if [ $? -ne 0 ]; then
+		log "Error: Failed to download ZeroTier package"
 		return 1
 	fi
+	log "Package download completed"
+	return 0
 }
 
 # Handle package install (package name as argument)

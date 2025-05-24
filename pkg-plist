@@ -6,3 +6,4 @@ www/zerotier_peers.php
 www/zerotier_controller.php
 www/zerotier_controller_network.php
 %%DATADIR%%/info.xml
+/usr/local/var/db/zerotier-one/local.conf
