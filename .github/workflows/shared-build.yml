@@ -30,6 +30,8 @@ jobs:
         id: build_package
         uses: vmactions/freebsd-vm@v1
         with:
+          release: "15.0"
+          arch: "amd64"
           usesh: true
           prepare: |
             pkg install -y git gmake zerotier-${{ inputs.zerotier-version }}
