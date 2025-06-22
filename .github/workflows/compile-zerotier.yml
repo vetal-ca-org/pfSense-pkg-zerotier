@@ -14,7 +14,7 @@ jobs:
   compile-package:
     needs: read-version
     runs-on: ubuntu-latest
-    timeout-minutes: 180  # 3 hours timeout for long builds
+    timeout-minutes: 600  # 10 hours timeout for long builds
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
