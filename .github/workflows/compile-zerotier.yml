@@ -1,0 +1,156 @@
+name: Compile ZeroTier Package
+
+on:
+  push:
+    paths:
+      - 'version.json'
+      - '.github/workflows/compile-zerotier.yml'
+  workflow_dispatch:
+
+jobs:
+  read-version:
+    uses: ./.github/workflows/read-version.yml
+
+  compile-package:
+    needs: read-version
+    runs-on: ubuntu-latest
+    timeout-minutes: 180  # 3 hours timeout for long builds
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Start FreeBSD VM and Compile Package
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: "15.0"
+          arch: "amd64"
+          usesh: true
+          prepare: |
+            # Install required packages
+            pkg install -y git poudriere
+          run: |
+            # Set variables
+            export ZEROTIER_VERSION="${{ needs.read-version.outputs.zerotier_version }}"
+            export BSD_VERSION="main"
+            export PLATFORM="amd64"
+            export PFSENSE_BRANCH="RELENG_2_8_0"
+            export JAIL_NAME="pfSense"
+            export PORT_TREE="zerotier"
+            
+            echo "Building ZeroTier version: ${ZEROTIER_VERSION}"
+            echo "Using FreeBSD version: ${BSD_VERSION}"
+            echo "Platform: ${PLATFORM}"
+            echo "pfSense branch: ${PFSENSE_BRANCH}"
+            
+            # Configure poudriere with proper directories
+            echo "Configuring poudriere..."
+            cp /usr/local/etc/poudriere.conf.sample /usr/local/etc/poudriere.conf
+            
+            # Add NO_ZFS option and configure directories
+            cat >> /usr/local/etc/poudriere.conf << 'EOF'
+            NO_ZFS=yes
+            DISTFILES_CACHE=/usr/local/poudriere/distfiles
+            CCACHE_DIR=/usr/local/poudriere/ccache
+            EOF
+            
+            # Create all necessary directories with proper permissions
+            echo "Creating poudriere directories..."
+            mkdir -p /usr/local/poudriere/distfiles
+            mkdir -p /usr/local/poudriere/ccache
+            mkdir -p /usr/local/poudriere/data/packages
+            mkdir -p /usr/local/poudriere/data/logs
+            mkdir -p /usr/local/poudriere/data/wrkdirs
+            mkdir -p /usr/ports/distfiles
+            
+            # Set proper ownership
+            chown -R root:wheel /usr/local/poudriere
+            chmod -R 755 /usr/local/poudriere
+            
+            # Verify poudriere configuration
+            echo "Verifying poudriere configuration..."
+            poudriere options -j "${JAIL_NAME}" -p "${PORT_TREE}" -z default net/zerotier || true
+            
+            # Create jail with error handling
+            echo "Creating poudriere jail..."
+            if ! poudriere jail -c -j "${JAIL_NAME}" -v "${BSD_VERSION}" -a "${PLATFORM}" -m git+https -b "${PFSENSE_BRANCH}"; then
+              echo "Error: Failed to create jail"
+              exit 1
+            fi
+            
+            # Create ports tree with error handling
+            echo "Creating ports tree..."
+            if ! poudriere ports -c -p "${PORT_TREE}"; then
+              echo "Error: Failed to create ports tree"
+              exit 1
+            fi
+            
+            # Build the package with detailed logging
+            echo "Starting package build..."
+            echo "net/zerotier" > /tmp/pkglist
+            
+            # Run build with verbose output and error handling
+            if poudriere bulk -j "${JAIL_NAME}" -p "${PORT_TREE}" -f /tmp/pkglist -v; then
+              echo "Build completed successfully!"
+              
+              # Find and copy the built package
+              PACKAGE_DIR="/usr/local/poudriere/data/packages/${JAIL_NAME}-${PORT_TREE}/All"
+              if [ -d "${PACKAGE_DIR}" ]; then
+                echo "Package directory found: ${PACKAGE_DIR}"
+                ls -la "${PACKAGE_DIR}"
+                
+                # Copy all zerotier packages
+                cp -v "${PACKAGE_DIR}"/zerotier-*.pkg ./
+                echo "Copied packages:"
+                ls -la *.pkg
+                
+                # Verify package integrity
+                for pkg in *.pkg; do
+                  if [ -f "$pkg" ]; then
+                    echo "Verifying package: $pkg"
+                    pkg info -F "$pkg" || echo "Warning: Could not verify package $pkg"
+                  fi
+                done
+              else
+                echo "Error: Package directory not found: ${PACKAGE_DIR}"
+                echo "Available directories:"
+                ls -la /usr/local/poudriere/data/packages/
+                exit 1
+              fi
+            else
+              echo "Error: Build failed!"
+              echo "Build logs:"
+              ls -la /usr/local/poudriere/data/logs/
+              exit 1
+            fi
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "zerotier-${{ needs.read-version.outputs.zerotier_version }}-compiled"
+          name: "ZeroTier ${{ needs.read-version.outputs.zerotier_version }} (Compiled)"
+          body: |
+            Compiled ZeroTier package version ${{ needs.read-version.outputs.zerotier_version }}
+            
+            This package was built using poudriere on FreeBSD 15.0 with pfSense RELENG_2_8_0 branch.
+            
+            **Build Details:**
+            - ZeroTier Version: ${{ needs.read-version.outputs.zerotier_version }}
+            - Build System: FreeBSD 15.0
+            - Architecture: amd64
+            - Build Tool: poudriere
+            - pfSense Branch: RELENG_2_8_0
+            - Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+            
+            **Installation:**
+            ```bash
+            pkg add zerotier-${{ needs.read-version.outputs.zerotier_version }}.pkg
+            ```
+            
+            **Note:** This is a compiled version built from source, not a pre-built binary.
+          draft: false
+          prerelease: false
+          update_existing: true
+          files: zerotier-*.pkg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

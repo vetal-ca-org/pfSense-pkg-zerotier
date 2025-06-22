@@ -48,3 +48,56 @@ export ZEROTIER_VERSION PKG_VERSION GITHUB_OWNER GITHUB_REPO &&\
 make -C "${dir}" clean &&\
 make -C "${dir}" package
 ```
+
+
+## Build the Zerotier main package on FreeBSD with right ABI
+
+
+```shell
+bsd_version="main" &&\
+platform="amd64" &&\
+pfsense_branch="RELENG_2_8_0" &&\
+sudo pkg install -y poudriere git &&\
+sudo cp /usr/local/etc/poudriere.conf.sample /usr/local/etc/poudriere.conf && \
+echo "NO_ZFS=yes" | sudo tee -a /usr/local/etc/poudriere.conf && \
+sudo mkdir -p /usr/ports/distfiles
+jail_name="pfSense"
+sudo poudriere jail -c -j "${jail_name}" -v "${bsd_version}" -a "${platform}" -m git+https -b "${pfsense_branch}"
+port_tree="zerotier" &&\
+sudo poudriere ports -c -p "${port_tree}"
+sudo poudriere bulk -j "${jail_name}" -p "${port_tree}" -f <(echo net/zerotier)
+```
+
+
+Package is built and can be found in `/usr/local/poudriere/data/packages/pfSense-zerotier/All/zerotier-1.14.2.pkg`
+
+
+## Build zerotier in pfSense
+
+Enable FreeBSD packages in pfSense
+
+- `sudo nano /usr/local/etc/pkg/repos/pfSense.conf`
+- `sudo nano /usr/local/etc/pkg/repos/FreeBSD.conf`
+
+```
+FreeBSD: { enabled: yes }
+...
+```
+
+Then run the following commands in the shell:
+
+```shell
+sudo pkg update &&\
+setenv ABI FreeBSD:14:amd64
+setenv OSVERSION `sysctl -n kern.osreldate`
+
+sudo pkg install -y git nano clang &&\
+mkdir ~/projects && cd ~/projects &&\
+git clone https://github.com/pfsense/FreeBSD-ports.git
+
+cd FreeBSD-ports/net/zerotier && git fetch && git checkout main
+
+make clean
+
+```
+
