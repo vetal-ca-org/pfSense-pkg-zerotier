@@ -65,7 +65,8 @@ if ($act == "toggle") {
             zerotier_controller_member_toggle($network, $member, 'activeBridge');
             break;
     }
-    header("Location: zerotier_controller_network.php?Network=${networkID}");
+    // Trigger resync to save state to config.xml
+    header("Location: pkg_edit.php?xml=zerotier.xml&act=save");
     exit;
 }
 
@@ -104,7 +105,8 @@ if ($_POST['save']) {
     }
     write_config();
     
-    header("Location: zerotier_controller_network.php?Network=${networkID}");
+    // Trigger resync to save state to config.xml
+    header("Location: pkg_edit.php?xml=zerotier.xml&act=save");
     exit;
 }
 if ($act=="new" || $act=="edit"):

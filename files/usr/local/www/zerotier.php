@@ -15,6 +15,14 @@ $tab_array[] = array(gettext("Configuration"), true, "zerotier.php");
 add_package_tabs("Zerotier", $tab_array);
 display_top_tabs($tab_array);
 
+// Display any error or success messages
+if (isset($input_errors)) {
+    print_input_errors($input_errors);
+}
+if (isset($savemsg)) {
+    print_info_box($savemsg);
+}
+
 if (!is_array($config['installedpackages']['zerotier'])) {
     $config['installedpackages']['zerotier'] = array();
 }
@@ -26,13 +34,9 @@ if (!is_array($config['installedpackages']['zerotier']['config'])) {
 if($_POST['save']) {
     if(isset($_POST['enable'])) {
         $config['installedpackages']['zerotier']['config'][0]['enable'] = 'yes';
-
-        zerotier_start();
     }
     else {
         $config['installedpackages']['zerotier']['config'][0]['enable'] = NULL;
-
-        zerotier_kill();
     }
 
     if(isset($_POST['enableExperimental'])) {
@@ -42,9 +46,43 @@ if($_POST['save']) {
         $config['installedpackages']['zerotier']['config'][0]['experimental'] = NULL;
     }
   
-    write_config(gettext("Update enable Zerotier."));
+    // Write configuration to config.xml
+    write_config(gettext("ZeroTier configuration updated."));
+    
+    // Trigger resync to handle service management and state serialization
+    header("Location: pkg_edit.php?xml=zerotier.xml");
+    exit;
+}
 
-    header("Location: zerotier.php");
+// Handle state management actions
+if(isset($_REQUEST['act'])) {
+    $act = $_REQUEST['act'];
+    
+    switch($act) {
+        case 'save_state':
+            if(zerotier_save_state()) {
+                $savemsg = gettext("ZeroTier state saved to config.xml successfully.");
+            } else {
+                $input_errors[] = gettext("Failed to save ZeroTier state to config.xml.");
+            }
+            break;
+            
+        case 'restore_state':
+            if(zerotier_deserialize_state()) {
+                $savemsg = gettext("ZeroTier state restored from config.xml successfully.");
+            } else {
+                $input_errors[] = gettext("Failed to restore ZeroTier state from config.xml.");
+            }
+            break;
+            
+        case 'clear_state':
+            if(zerotier_clear_state()) {
+                $savemsg = gettext("ZeroTier state cleared from config.xml successfully.");
+            } else {
+                $input_errors[] = gettext("Failed to clear ZeroTier state from config.xml.");
+            }
+            break;
+    }
 }
 
 if ($config['installedpackages']['zerotier']['config'][0]['enable'] != 'yes' || !is_service_running("zerotier")) {
@@ -87,6 +125,48 @@ $section->addInput(new Form_Checkbox(
                 $enable['experimental']
             ))->setHelp('This will enable all experimental field options to be displayed and proccessed.');
 $form->add($section);
+
+// Add Save State section
+$section = new Form_Section('State Management');
+$section->addInput(new Form_Button(
+    'save_state',
+    'Save State',
+    'Save current ZeroTier state to configuration',
+    'btn-primary'
+))->setHelp('Save the current ZeroTier identity, networks, and configuration to pfSense config.xml. This state will be included in pfSense backups and restored automatically.');
+
+$section->addInput(new Form_Button(
+    'restore_state',
+    'Restore State',
+    'Restore ZeroTier state from configuration',
+    'btn-info'
+))->setHelp('Restore ZeroTier state from pfSense config.xml.');
+
+$section->addInput(new Form_Button(
+    'clear_state',
+    'Clear State',
+    'Clear saved ZeroTier state from configuration',
+    'btn-warning'
+))->setHelp('Remove saved ZeroTier state from pfSense config.xml.');
+
+$form->add($section);
+
+// Handle button actions
+if($_POST['save_state']) {
+    header("Location: pkg_edit.php?xml=zerotier.xml&act=save");
+    exit;
+}
+
+if($_POST['restore_state']) {
+    header("Location: pkg_edit.php?xml=zerotier.xml&act=restore");
+    exit;
+}
+
+if($_POST['clear_state']) {
+    header("Location: pkg_edit.php?xml=zerotier.xml&act=clear");
+    exit;
+}
+
 print($form);
 include("foot.inc");
 ?>

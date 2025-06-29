@@ -22,18 +22,22 @@ if (isset($_REQUEST['act'])) {
 }
 if ($_POST['save']) {
     $out = zerotier_join_network($_POST['Network']);
-    header("Location: zerotier_networks.php");
+    // Trigger resync to save state to config.xml
+    header("Location: pkg_edit.php?xml=zerotier.xml&act=save");
     exit;
 }
 if ($act=="del") {
     $out = zerotier_leave_network($_POST['Network']);
-    header("Location: zerotier_networks.php");
+    // Trigger resync to save state to config.xml
+    header("Location: pkg_edit.php?xml=zerotier.xml&act=save");
     exit;
 }
 if ($_POST['Update']) {
     $out = zerotier_leave_network($_POST['NetworkOriginal']);
     $out = zerotier_join_network($_POST['Network']);
-    header("Location: zerotier_networks.php");
+    // Trigger resync to save state to config.xml
+    header("Location: pkg_edit.php?xml=zerotier.xml&act=save");
+    exit;
 }
 if ($act=="new" || $act=="edit"):
     $network = $_REQUEST['Network'];

@@ -37,7 +37,8 @@ if (!is_service_running("zerotier")) {
 }
 if ($act=="del") {
     $out = zerotier_controller_deletenetwork($_POST['Network']);
-    header("Location: zerotier_controller.php");
+    // Trigger resync to save state to config.xml
+    header("Location: pkg_edit.php?xml=zerotier.xml&act=save");
     exit;
 }
 if ($_POST['save']) {
@@ -87,8 +88,8 @@ if ($_POST['save']) {
     }
 
     $out = zerotier_controller_createnetwork($zerotier_network, $id);
-    
-    header("Location: zerotier_controller.php");
+    // Trigger resync to save state to config.xml
+    header("Location: pkg_edit.php?xml=zerotier.xml&act=save");
     exit;
 }
 if ($act=="new" || $act=="edit"):
