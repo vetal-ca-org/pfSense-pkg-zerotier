@@ -11,6 +11,8 @@ require_once("service-utils.inc");
 
 function zerotier_sync() {
 	global $config;
+
+	file_put_contents('/tmp/zerotier.log', date('Y-m-d H:i:s') . " - zerotier_sync() called\n", FILE_APPEND);
 	
 	// Get the action from the request
 	$action = $_REQUEST['act'] ?? '';
@@ -423,12 +425,20 @@ function get_status_class($status) {
 function zerotier_serialize_state() {
 	global $config;
 	
+	// DEBUG: Add breakpoint here
+	file_put_contents('/tmp/zerotier.log', date('Y-m-d H:i:s') . " - zerotier_serialize_state() called\n", FILE_APPEND);
+
+	
 	// Create the state array for config.xml
 	$zerotier_state = array();
+	
+	// DEBUG: Log the current config
+	error_log("[DEBUG] Current zerotier config: " . print_r($config['installedpackages']['zerotier'] ?? 'NOT SET', true));
 	
 	// Save basic configuration (already in config.xml)
 	if (isset($config['installedpackages']['zerotier']['config'][0])) {
 		$zerotier_state['config'] = $config['installedpackages']['zerotier']['config'][0];
+		error_log("[DEBUG] Saved basic config");
 	}
 	
 	// Save ZeroTier identity and network data as base64 encoded strings
